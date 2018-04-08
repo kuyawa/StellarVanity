@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Vanity</title>
+<style>
+body { margin: 0; padding: 0; background-color: #293941; color: #E0E6EA; font: normal 1em/1.4 'Helvetica Neue', sans-serif; }
+header  { width: 500px; margin: 0 auto; text-align: center; }
+section { width: 480px; margin: 0 auto; padding: 20px 10px; text-align: center; background-color: #1A262C; }
+/*section {  border-top: 1px solid #0A162C;  border-left: 1px solid #0A162C;  border-right: 1px solid #3A465C;  border-bottom: 1px solid #3A465C;  }*/
+footer  { width: 500px; margin: 0 auto 20px; text-align: center; font-size: 0.8em; color: #A8B3CE; }
+h1   { font-weight: 100; font-size: 2em; border-bottom: 1px solid #A8B3CE; }
+h1 b { font-weight: 500; }
+li { list-style-type: none; }
+a { text-decoration: none; color: #A8B3CE; }
+a:hover { color: #D8E3FE; }
+#sample { font-family: monospace; color: #A8B3CE; }
+#sample #ini { color: #CC0; }
+#sample #end { color: #CC0; }
+#find    { width: 100px; margin: 10px; padding: 2px; color: #D8E3FE; background-color: #369; border: 1px solid #091921; border-radius: 3px; font-size: 1em; text-align: center; }
+#btn-pre { width: 200px; margin-bottom: 10px; }
+#info    { color: #A8B3CE; font-size: 0.8em; }
+#counter { color: #A8B3CE; font-size: 0.8em; }
+.log     { color: #A8B3CE; font-size: 0.8em; }
+.click { width: 100px; margin: 0; padding: 4px; color: #A8B3CE; background-color: #394951; border: 1px solid #192931; border-radius: 3px; outline: none; }
+.click:hover  { color: #B8C3DE; background-color: #394951; cursor: pointer; }
+.click:active { color: #98A3BE; background-color: #293941; }
+.adr { font-family: monospace; border-top: 1px solid #68738E; }
+.adr:first-child { border-top: none; }
+.sec { font-family: monospace; color: #68738E; /*border-bottom: 1px solid #68738E;*/ }
+#btn-run { width: 100px; margin: 10px; background-color: #800; color: #DCC; }
+#btn-run:hover  { background-color: #900; color: #FEE; cursor: pointer; }
+#btn-run:active { background-color: #700; color: #BAA; }
+#address-list { margin-top: 20px; }
+#note { margin: 20px 0; padding: 10px 0; font-size: 0.8em; border-top: 1px solid #A8B3CE; }
+#donate { color: #EEE; }
+#myaddress { font-family: monospace; font-size: 1.2em; }
+#myaddress x { color: #CC0; font-weight: normal; }
+#apps { margin-top: 10px; color: #68738E; }
+#apps a { display: inline-block; padding: 4px 4px; }
+#apps a.notyet { color: #68738E; }
+</style>
+</head>
+<body>
+
+<header>
+	<h1>Generate Your <b>Vanity</b> XLM Address</h1>
+</header>
+
+<section>
+	<li id="sample"><span id="pre">GA</span><span id="ini">LT</span>234567XDONOTUSETHISISATESTINGACCOUNTDONOTUSE<span id="mid"></span>X234567<span id="end"></span></li>
+	<li><button id="btn-ini" class="click" onclick="useIni()">START</button> <input type="textbox" id="find" maxlength="5" value="ME"> <button id="btn-end" class="click" onclick="useEnd()">END</button></li>
+	<li><button id="btn-pre" class="click" onclick="togglePrefix()">INCLUDE ADDRESS PREFIX</button></li>
+	<li id="info">It takes an average of 10 seconds for 2 chars</li>
+	<li><button id="btn-run" class="click" onclick="run()">GENERATE</button></li>
+	<li id="counter">&nbsp;</li>
+	<div id="address-list"></div>
+</section>
+
+<footer>
+	<div id="note">You shouldn't trust this site or any other site that generates Stellar addresses.<br>
+		We advice you to download the code and run it on your own computer.<br>
+		If you don't understand the risks please refrain from using this site.<br>
+	    We are not responsible for any loss. Use at your own risk.
+	</div>
+	<div id="donate">Please donate to help create more tools for the Stellar platform</div>
+    <div id="myaddress"><a href="./ledger?net=live&address=GALT5LR4TDTR5TX7GFHYZQIZRDD6HX32YHXYII7CAFG3ZOZALZUYGMZK"><x>GALT</x>5LR4TDTR5TX7GFHYZQIZRDD6HX32YHXYII7CAFG3ZOZALZUYGMZK</a></div>
+    <div id="apps"><a href="/stellar/new">New Account</a> • <a href="/stellar/vanity">Vanity</a> • <a href="/portfolio">Portfolio</a> • <a class="notyet">Wallet</a> • <a href="/stellar/ledger">Ledger</a></div>
+</footer>
+
+<script>
+
+var list      = [];
+var place     = 0;  // 0.ini 1.end
+var isRunning = false;
+var usePrefix = false;
+var worker    = null;
+
+function run() {
+	var find  = $('find').value.trim().toUpperCase();
+	var num   = find.length;
+	var count = 0
+	var found = 0
+	if(!find) { alert('Nothing to find'); return; }
+	isRunning = !isRunning;
+	$('btn-run').innerHTML = isRunning?'STOP':'START';
+	if(isRunning) {
+    	console.log('START');
+    	list = [];
+		$('address-list').innerHTML = '';
+		//$('address-list').innerHTML = '<li class="logx">&nbsp;</li>';
+		//$('address-list').innerHTML = '<li class="log">START</li>';
+		worker = new Worker("vanity-generator.js");
+    	worker.onmessage = function(event) {
+    		//console.log(event.data);
+    		if(event.data.type=='error') {
+    			alert('We are having issues with Safari, try any other browser\nError in StellarSDK: '+event.data.text);
+    		}
+    		else if(event.data.type=='count') {
+    			count = event.data.index
+    			$('counter').innerHTML = count + ' keypairs generated - ' + found + ' found';
+    		}
+    		else if(event.data.type=='found') { 
+    			found++;
+    			console.log(event.data);
+    			list.push(event.data.account);
+    			$('counter').innerHTML = count + ' keypairs generated - ' + found + ' found';
+        		$('address-list').innerHTML = '<li class="adr">'+event.data.account.publicKey+'</li>' + '<li class="sec">'+event.data.account.secretKey+'</li>' + $('address-list').innerHTML;
+        	}
+    		else if(event.data.type=='done') {
+    			console.log('DONE');
+    			//console.log(list);
+    			$('counter').innerHTML = count + ' keypairs generated - ' + found + ' found - Done!';
+				$('btn-run').innerHTML = 'START';
+        		$('address-list').innerHTML += '<li class="log">DONE!</li>';
+        	}
+    	};
+		//worker.postMessage({type:'ini', crypto:newcrypto});
+		worker.postMessage({type:'run', find:find, place:place, num:num, prefix:usePrefix});
+    } else {
+		worker.postMessage({type:'stop'});
+    	worker.terminate();
+    	worker = null;
+		document.getElementById('address-list').innerHTML += '<li class="log">DONE!</li>';
+    }
+}
+
+function onKey(event) {
+	//console.log(event.keyCode);
+	//var allowed = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';  // base32
+	//var except  = '0189';
+	var ok = false;
+	if(event.keyCode < 47 || (event.keyCode>49 && event.keyCode<56) || (event.keyCode>64 && event.keyCode<91)) { ok = true; }
+	//console.log(ok?'OK':'NO');
+	if(!ok) { event.preventDefault(); return false; }
+}
+
+function onUpper(event) {
+	var value = event.target.value.trim();
+    if(event.target.value != value.toUpperCase()) { event.target.value = value.toUpperCase(); }
+    resample();
+}
+
+function $(id) { return document.getElementById(id); }
+function useIni() { place = 0; resample(); }
+function useEnd() { place = 1; usePrefix = false; resample(); }
+function togglePrefix() {
+	usePrefix = !usePrefix;
+	resample(true);
+}
+
+function resample(clean) {
+	var pre  = 'GA';
+	var find = $('find').value;
+	var n = 5;
+	if(usePrefix && place==0) { 
+		n = 7; 
+		pre=''; 
+		if(!find.startsWith('G')){ find = 'GA' + find; $('find').value = find; }
+		if('ABCD'.indexOf(find.substr(1,1))<0){ find = 'GA' + find; $('find').value = find; }
+	}
+	var m = find.length;
+	var fill = 'VWXYZ'.substr(0,n-m);
+	if(place==1) { $('pre').innerHTML = pre; $('ini').innerHTML = '';   $('mid').innerHTML = fill; $('end').innerHTML = find; }
+	        else { $('pre').innerHTML = pre; $('ini').innerHTML = find; $('mid').innerHTML = fill; $('end').innerHTML = ''; }
+
+	if(usePrefix){
+	    if (find.length == 1) { $('info').innerHTML = 'It takes an average of  2 seconds for 1 char  with prefix'; }
+	    if (find.length == 2) { $('info').innerHTML = 'It takes an average of  2 seconds for 2 chars with prefix'; }
+	    if (find.length == 3) { $('info').innerHTML = 'It takes an average of  2 seconds for 3 chars with prefix'; }
+	    if (find.length == 4) { $('info').innerHTML = 'It takes an average of 20 seconds for 4 chars with prefix'; }
+	    if (find.length >  4) { $('info').innerHTML = 'It takes an average of  5 mins    for 5 chars with prefix'; }
+	} else {
+	    if (find.length == 1) { $('info').innerHTML = 'It takes an average of  2 seconds for 1 char'; }
+	    if (find.length == 2) { $('info').innerHTML = 'It takes an average of 10 seconds for 2 chars'; }
+	    if (find.length == 3) { $('info').innerHTML = 'It takes an average of 60 seconds for 3 chars'; }
+	    if (find.length == 4) { $('info').innerHTML = 'It takes an average of  1 hour    for 4 chars'; }
+	    if (find.length >  4) { $('info').innerHTML = 'It takes an average of 24 hours   for 5 chars'; }		
+	}
+}
+
+function main() {
+    $('find').addEventListener('keydown', onKey, false);  // Prevent illegal chars
+    $('find').addEventListener('keyup', onUpper, false);  // Entry to uppercase
+    useIni();
+}
+
+window.onload = main;
+
+</script>
+</body>
+</html>
